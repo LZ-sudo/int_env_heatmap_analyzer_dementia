@@ -4,4 +4,4 @@
 /test_images
 visual_heatmap_label_gen_old.py
 sam_vit_b_01ec64.pth
-yolov8n.pth
+yolov8n.pt
