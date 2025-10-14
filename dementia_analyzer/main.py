@@ -72,10 +72,15 @@ class DementiaFriendlyAnalyzer:
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         h, w = image.shape[:2]
         
-        # Step 1: Detect objects using YOLO + SAM
-        print("  - Detecting objects with YOLO...")
-        detections = self.segmentation.detect_objects(image_rgb)
-        print(f"    Found {len(detections)} objects")
+        # # Step 1: Detect objects using YOLO + SAM
+        # print("  - Detecting objects with YOLO...")
+        # detections = self.segmentation.detect_objects(image_rgb)
+        # print(f"    Found {len(detections)} objects")
+
+        # Step 1: Detect objects using YOLO + SAM hybrid approach
+        print("  - Detecting objects (hybrid: YOLO + SAM everything)...")
+        detections = self.segmentation.detect_objects_hybrid(image_rgb)
+        print(f"    Found {len(detections)} segments")
         
         # Step 2: Estimate depth
         print("  - Estimating depth...")
@@ -92,11 +97,19 @@ class DementiaFriendlyAnalyzer:
         )
         print(f"    Found {len(contrast_details)} contrast issues")
         
-        # Step 5: Analyze pattern complexity
+        # # Step 5: Analyze pattern complexity
+        # print("  - Analyzing pattern complexity...")
+        # pattern_risk, pattern_details = self.pattern_analysis.analyze_pattern_complexity_per_object(
+        #     image_rgb, detections
+        # )
+        # print(f"    Found {len(pattern_details)} pattern issues")
+
+        # Step 5: Analyze pattern complexity on all detected segments
         print("  - Analyzing pattern complexity...")
-        pattern_risk, pattern_details = self.pattern_analysis.analyze_pattern_complexity_per_object(
-            image_rgb, detections
-        )
+        pattern_risk, pattern_details = \
+            self.pattern_analysis.analyze_pattern_complexity_per_object(
+                image_rgb, detections
+            )
         print(f"    Found {len(pattern_details)} pattern issues")
         
         # Step 6: Combine risks

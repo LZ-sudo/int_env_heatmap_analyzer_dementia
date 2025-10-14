@@ -113,6 +113,130 @@ class SegmentationModule:
         
         return detections
     
+    def detect_objects_hybrid(self, image):
+        """
+        Hybrid approach: Use YOLO for classification + SAM everything for comprehensive coverage.
+        
+        This combines the best of both:
+        - YOLO identifies what objects are (chair, couch, etc.)
+        - SAM finds ALL segments including cushions, pillows, decorations
+        
+        Args:
+            image: RGB image as numpy array
+            
+        Returns:
+            List of detections with both YOLO-classified and SAM-only segments
+        """
+        # First, get YOLO detections
+        yolo_detections = self.detect_objects(image) if self.yolo_loaded else []
+        
+        # Then, get SAM everything detections
+        sam_detections = self.detect_everything_with_sam(image)
+        
+        if not sam_detections:
+            return yolo_detections
+        
+        # Merge: Keep YOLO detections for their classifications, 
+        # add SAM detections that don't significantly overlap with YOLO
+        
+        h, w = image.shape[:2]
+        yolo_coverage = np.zeros((h, w), dtype=bool)
+        
+        # Mark areas covered by YOLO
+        for det in yolo_detections:
+            if det.get('mask') is not None:
+                yolo_coverage |= det['mask']
+            else:
+                x1, y1, x2, y2 = det['bbox']
+                yolo_coverage[y1:y2, x1:x2] = True
+        
+        # Add SAM segments that are mostly uncovered by YOLO
+        additional_detections = []
+        for sam_det in sam_detections:
+            sam_mask = sam_det['mask']
+            
+            # Calculate overlap with YOLO coverage
+            overlap = np.sum(sam_mask & yolo_coverage)
+            sam_area = np.sum(sam_mask)
+            
+            overlap_ratio = overlap / sam_area if sam_area > 0 else 1.0
+            
+            # If less than 30% overlap with YOLO, it's a new object (likely cushion, pillow, etc.)
+            if overlap_ratio < 0.3:
+                additional_detections.append(sam_det)
+        
+        print(f"    Hybrid detection: {len(yolo_detections)} YOLO + {len(additional_detections)} additional SAM segments")
+        
+        return yolo_detections + additional_detections
+
+
+    def detect_everything_with_sam(self, image):
+        """
+        Use SAM to segment EVERYTHING in the image automatically (no YOLO needed).
+        This catches objects YOLO misses like cushions, pillows, wall art, etc.
+        Slower but much more comprehensive.
+        
+        Args:
+            image: RGB image as numpy array
+            
+        Returns:
+            List of detection dictionaries with masks
+        """
+        if self.sam_predictor is None:
+            print("    SAM not available - falling back to YOLO only")
+            return []
+        
+        from segment_anything import SamAutomaticMaskGenerator
+        
+        print("    Running SAM automatic mask generation (this may take a moment)...")
+        
+        # Create automatic mask generator
+        mask_generator = SamAutomaticMaskGenerator(
+            model=self.sam_predictor.model,
+            points_per_side=24,              # Density of point grid (32x32 = 1024 points)
+            pred_iou_thresh=0.86,            # Quality threshold
+            stability_score_thresh=0.92,     # Stability threshold
+            crop_n_layers=1,                 # Crop layers for better detection
+            crop_n_points_downscale_factor=2,
+            min_mask_region_area=150,        # Minimum 200 pixels (filters tiny segments)
+        )
+        
+        # Generate masks for everything
+        masks = mask_generator.generate(image)
+        
+        print(f"    SAM detected {len(masks)} segments")
+        
+        # Convert to detection format
+        detections = []
+        for i, mask_data in enumerate(masks):
+            mask = mask_data['segmentation']
+            
+            # Get bounding box from mask
+            coords = np.argwhere(mask)
+            if len(coords) == 0:
+                continue
+                
+            y_min, x_min = coords.min(axis=0)
+            y_max, x_max = coords.max(axis=0)
+            
+            # Calculate mask area
+            area = mask_data['area']
+            
+            detection = {
+                'class': 'sam_segment',  # Generic name since we don't have YOLO classification
+                'confidence': mask_data['stability_score'],
+                'bbox': np.array([x_min, y_min, x_max, y_max]),
+                'class_id': -1,
+                'mask': mask,
+                'area': area
+            }
+            detections.append(detection)
+        
+        # Sort by area (largest first) for better visualization
+        detections.sort(key=lambda x: x['area'], reverse=True)
+        
+        return detections
+
     def get_sam_masks(self, image, detections):
         """
         Use SAM to get precise pixel-level masks for detected objects
