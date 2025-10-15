@@ -36,7 +36,7 @@ class DementiaFriendlyAnalyzer:
         self.segmentation = SegmentationModule(device=str(self.device))
         self.depth_estimation = DepthEstimationModule(device=str(self.device))
         self.contrast_analysis = ContrastAnalysisModule(contrast_threshold=1.5)
-        self.pattern_analysis = PatternAnalysisModule(pattern_threshold=0.18)
+        self.pattern_analysis = PatternAnalysisModule(complexity_threshold=0.45)  # Tune this: 0.35-0.45
         self.visualization = VisualizationModule()
         
         print(f"\n{'='*70}\n")
