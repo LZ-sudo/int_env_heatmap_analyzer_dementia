@@ -291,10 +291,10 @@ class ContrastBasedComplexityClassifier:
         # Weighted combination
         # Color contrast is MOST important for your use case
         weights = {
-            'color_contrast': 0.35,      # Yellow with blue stripes
-            'contrast_ratio': 0.20,      # Red with white/gold
+            'color_contrast': 0.40,      # Yellow with blue stripes
+            'contrast_ratio': 0.30,      # Red with white/gold
             'repetition': 0.20,          # Regular patterns
-            'diversity': 0.25            # Multi-colored
+            'diversity': 0.10            # Multi-colored
         }
         
         scores = {
